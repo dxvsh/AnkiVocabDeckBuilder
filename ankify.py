@@ -1,18 +1,21 @@
 import genanki
 import requests
 
-def fetch_word_definitions(word):
+
+def fetch_word_definitions(word: str) -> (list, str):
+    # return a list of definitions of the word along with the IPA pronounciation
     word = word.lower()
-    url = f"https://api.datamuse.com/words?sp={word}&md=d"
+    url = f"https://api.datamuse.com/words?sp={word}&md=dr&ipa=1"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
-        for res in data:
-            if res['word'] == word:
-                definitions = res['defs']
-                break
-        return definitions
-    return None
+        if data:
+            for res in data:
+                if res['word'] == word:
+                    definitions = res['defs']
+                    ipa_pron = res['tags'][1].split("ipa_pron:")[1]
+                    return definitions, ipa_pron
+    return [], ""
 
 def create_anki_deck(file_path):
     # Read words from the text file
@@ -40,17 +43,21 @@ def create_anki_deck(file_path):
 
     # Generate Anki notes/cards for each word
     for word in words:
-        definitions = fetch_word_definitions(word)
+        definitions, ipa_pron = fetch_word_definitions(word)
 
         if definitions:
             # we'll wrap all the word definitions within an ordered list
             final_definition = "<ol>"
-            for defi in definitions:
-                final_definition += f"<li>{defi}</li>"
+            for definition in definitions:
+                final_definition += f"<li>{definition}</li>"
             final_definition += "</ol>"
 
             # make the word bold for better readability
             fmted_word = f"<b>{word}</b>"
+
+            # include the ipa_pron if it exists
+            if ipa_pron:
+                fmted_word += f" [{ipa_pron}]"
         else:
             print(f"Unable to fetch definitions for '{word}'. Skipping...")
             continue
@@ -63,7 +70,7 @@ def create_anki_deck(file_path):
         deck.add_note(note)
 
         count += 1
-        print(f"{count}/{total_words} words processed...") # keeping track of the progress
+        print(f"{count}/{total_words} words successfully processed...") # keeping track of the progress
 
     # Create an Anki package and save it as a .apkg file
     package = genanki.Package(deck)
